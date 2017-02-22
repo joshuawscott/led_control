@@ -1,0 +1,6 @@
+## Start the Elixir shell
+-name fw@nerves.local
+-setcookie foobar
+-noshell
+-user Elixir.IEx.CLI
+-extra --no-halt
