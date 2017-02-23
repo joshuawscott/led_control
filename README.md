@@ -3,6 +3,8 @@
 An umbrella app that has a Phoenix frontend for manipulating LEDs on devices like the Raspberry PI.
 Based on https://github.com/nerves-project/nerves-examples/tree/master/hello_phoenix
 
+Currently this is just a toy project, but hopefully some of the parts can be released.
+
 ## Target
 
 The default target is set to `rpi2` - This is what I developed it on, I'm open to PRs to support
@@ -56,6 +58,7 @@ Once this is done, and the device is booted, you can attach to it with
 ```
 $ iex --cookie foobar --name laptop --remsh fw@nerves.local
 ```
+Then navigate to the ip of the device and you'll see the welcome page.
 
 Push new firmware to the device with
 ```
