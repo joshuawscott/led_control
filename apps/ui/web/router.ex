@@ -17,10 +17,11 @@ defmodule Ui.Router do
     pipe_through :browser # Use the default browser stack
 
     get "/", PageController, :index
+    get "/pi2", PI2Controller, :index
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", Ui do
-  #   pipe_through :api
-  # end
+  scope "/api", Ui do
+    pipe_through :api
+    get "/pin/:pin", PinController, :show
+  end
 end

@@ -1,36 +1,88 @@
 defmodule Ui.Pins do
+  @moduledoc """
+  This is an abstraction layer for the underlying GPIO pin interface.
+  Holds the GPIO pin pids internally to allow easier manipulation.
+  """
   use GenServer
-  @pin_numbers [4,17,27,22,5,6,13,19,26,18,23,24,25,12,16,20,21]
-  def start_link() do
-    GenServer.start_link(__MODULE__, %{})
+
+  @type pin_number :: non_neg_integer()
+
+  defmodule GPIOPin do
+    @moduledoc """
+    Information about a GPIO pin.
+    """
+    @type t :: %GPIOPin{}
+    defstruct [:mode, :state, :pid]
   end
-  def init(first_state) do
-    state = Enum.reduce(@pin_numbers, first_state, fn pin_number, accum ->
-      {:ok, pin} = Gpio.start_link(pin_number, :output)
+
+  @doc """
+  Starts the Ui.Pins server. Only one is allowed per VM.
+  the 
+  """
+  @spec start_link([pin_number]) :: GenServer.start
+  def start_link(pins) do
+    GenServer.start_link(__MODULE__, pins, name: __MODULE__)
+  end
+
+  def init(pins) do
+    state = Enum.reduce(pins, %{}, fn pin_number, accum ->
+      {:ok, pid} = Gpio.start_link(pin_number, :output)
+      Gpio.write(pid, 0)
+      pin = %GPIOPin{pid: pid, state: 0, mode: :output}
+
       Map.put(accum, pin_number, pin)
     end)
     {:ok, state}
   end
 
-  def pin(pid, number) do
-    GenServer.call(pid, {:pin, number})
+  @doc """
+  Get pin object of the underlying Gpio process for a pin to use lower-level operations.
+  """
+  @spec pin(pin_number()) :: GPIOPin.t
+  def pin(number) when is_integer(number) do
+    GenServer.call(__MODULE__, {:pin, number})
   end
 
-  def on(pid, number) do
-    GenServer.call(pid, {:on, number})
+  @doc "Returns the state of the pin"
+  @spec read(pin_number()) :: 1 | 0
+  def read(number) when is_integer(number) do
+    GenServer.call(__MODULE__, {:read, number})
   end
 
-  def off(pid, number) do
-    GenServer.call(pid, {:off, number})
+  @doc "Sets pin to 1"
+  @spec on(pin_number()) :: :on
+  def on(number) when is_integer(number) do
+    GenServer.call(__MODULE__, {:on, number})
   end
 
-  def blink(pid, number) do
-    GenServer.call(pid, {:blink, number})
+  @doc "Sets pin to 0"
+  @spec off(pin_number()) :: :off
+  def off(number) when is_integer(number) do
+    GenServer.call(__MODULE__, {:off, number})
+  end
+
+  @doc """
+  turn pin on for `time` ms, then off for `length` ms. Repeat `times` times.
+
+  Note that this is synchronous, so it sets the appropriate timeout in the GenServer
+  call, but if any other GenServer is waiting, it might time out.
+  """
+  @spec blink(pin_number(), pos_integer(), pos_integer()) :: :off
+  def blink(number, times \\ 10, time \\ 250) when is_integer(number) do
+    # Each on/off blink takes `time * 2` ms, and we do it `times` times, and add 500ms padding
+    timeout = times * time * 2 + 500
+    GenServer.call(__MODULE__, {:blink, number, times, time}, timeout)
   end
 
   def handle_call({:pin, number}, _from, state) do
     pin = Map.get state, number
     {:reply, pin, state}
+  end
+
+  def handle_call({:read, number}, _from, state) do
+    pin = Map.get state, number
+    value = Gpio.read(pin.pid)
+    {:reply, value, state}
   end
 
   def handle_call({:on, number}, _from, state) do
@@ -45,13 +97,13 @@ defmodule Ui.Pins do
     {:reply, :off, state}
   end
 
-  def handle_call({:blink, number}, _from, state) do
+  def handle_call({:blink, number, times, time}, _from, state) do
     pin = Map.get state, number
-    Enum.each(1..20, fn _ ->
+    Enum.each(1..times, fn _ ->
       Gpio.write(pin, 1)
-      :timer.sleep 250
+      :timer.sleep time
       Gpio.write(pin, 0)
-      :timer.sleep 250
+      :timer.sleep time
     end)
     {:reply, :off, state}
   end
